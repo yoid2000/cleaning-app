@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Your home · Cleaning App{% endblock %}
+{% block content %}
+<section class="home-intro"><div><div class="eyebrow"><span class="small-line"></span> A CLEANER HOME, AT YOUR PACE</div><h1>A little care.<br>A calmer home.</h1><p class="lead">Your next jobs, thoughtfully planned.<br>Let’s take it one cleaning day at a time.</p></div><div class="home-art" aria-hidden="true"><span class="art-spark">✧</span><div class="little-house"><div class="house-roof"></div><div class="house-body"><div class="house-window"><i></i><i></i><i></i><i></i></div><div class="house-door"></div></div><div class="plant"><div></div><i></i><b></b></div></div><span class="art-caption">ROOM TO BREATHE</span></div></section>
+<section class="action-grid" aria-label="Main actions">
+  <a class="action-card primary-card" href="{{ url_for('what_to_do') }}"><span class="action-icon">{{ icon('spark') }}</span><span class="card-kicker">LET’S MAKE A PLAN</span><h2>What to do</h2><p>A balanced set of jobs for your<br class="desktop-break"> next cleaning day.</p><span class="card-link">Find my next jobs {{ icon('arrow') }}</span></a>
+  <a class="action-card secondary-card" href="{{ url_for('what_i_did') }}"><span class="action-icon">{{ icon('check') }}</span><span class="card-kicker">EVERY LITTLE BIT COUNTS</span><h2>What I did</h2><p>Log the jobs you’ve finished.<br class="desktop-break"> We’ll take it from there.</p><span class="card-link">Record a cleaning day {{ icon('arrow') }}</span></a>
+</section>
+<section class="month-strip" aria-label="This month"><div class="month-title"><span class="soft-icon">{{ icon('calendar') }}</span><div><strong>{{ today.strftime('%B') }}, at a glance</strong><span>A steady rhythm, a lighter load.</span></div></div><div class="month-stat"><strong>{{ day_count }}<small> / 3</small></strong><span>cleaning days logged</span></div><div class="month-stat"><strong>{{ due_count }}</strong><span>jobs due this month</span></div></section>
+<div class="section-heading"><h2>Your cleaning rhythm</h2><span>Three days a month. A little of everything.</span></div>
+<section class="rhythm-grid" aria-label="Cleaning frequencies">
+  <div class="rhythm-card"><span class="task-symbol dust">{{ icon('spark') }}</span><div><h3>Dust</h3><p>Every month</p></div><span class="cadence">01<span>MONTH</span></span></div>
+  <div class="rhythm-card"><span class="task-symbol vacuum">{{ icon('grid') }}</span><div><h3>Vacuum</h3><p>Every other month*</p></div><span class="cadence">02<span>MONTHS</span></span></div>
+  <div class="rhythm-card"><span class="task-symbol mop">{{ icon('leaf') }}</span><div><h3>Mop</h3><p>Every three months</p></div><span class="cadence">03<span>MONTHS</span></span></div>
+</section>
+<p class="quiet-note">{{ icon('sun') }} Sundays are for dusting. *Vacuuming is also included whenever you mop.</p>
+<section class="recent-section"><div class="section-heading"><h2>A little progress</h2><a href="{{ url_for('history') }}">View history {{ icon('arrow') }}</a></div>{% if recent %}<div class="panel recent-list">{% for entry in recent %}<div><span class="soft-icon">{{ icon('check') }}</span><div><strong>{{ entry.day|nice_date }}</strong><span>{{ entry.count }} jobs completed</span></div><span class="badge">{{ entry.units }} units</span></div>{% endfor %}</div>{% else %}<div class="empty-inline">{{ icon('leaf') }}<div><strong>A fresh start.</strong><p>Your completed jobs will appear here. Ready when you are.</p></div></div>{% endif %}</section>
+{% endblock %}

@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block title %}History · Cleaning App{% endblock %}
+{% block content %}
+<div class="page-heading heading-row"><div><div class="eyebrow">A LITTLE PROGRESS, EVERY TIME</div><h1>Look what you’ve done.</h1><p class="lead">Your cleaning history, most recent first.</p></div><a class="button" href="{{ url_for('what_i_did') }}">{{ icon('check') }} Record jobs</a></div>
+{% if history %}<div class="history-summary"><span><strong>{{ history|length }}</strong> cleaning days</span><span><strong>{{ job_count }}</strong> jobs completed</span></div><div class="history-timeline">{% for day, jobs in history.items() %}<section class="panel history-day"><div class="panel-heading"><h2>{{ day|nice_date }}</h2><span class="badge">{{ jobs|length }} jobs · {{ jobs|sum(attribute='units') }} units</span></div>{{ jobs_table(jobs) }}</section>{% endfor %}</div>{% else %}<section class="panel empty-state">{{ icon('leaf') }}<h2>Your fresh start begins here.</h2><p>No cleaning recorded yet.<br>Every completed job will find a home on this page.</p><a class="button" href="{{ url_for('what_i_did') }}">Record your first jobs {{ icon('arrow') }}</a></section>{% endif %}
+{% endblock %}

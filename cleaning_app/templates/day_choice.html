@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}What to do · Cleaning App{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('home') }}">{{ icon('back') }} Back to overview</a>
+<div class="page-heading"><div class="eyebrow">WHAT TO DO · 01 / 02</div><h1>What kind of day?</h1><p class="lead">Choose your next cleaning day. We’ll find a balanced set of jobs.</p></div>
+<form method="post" class="action-grid choice-grid">{{ csrf() }}
+  <button class="action-card secondary-card choice-card" name="kind" value="sunday"><span class="action-icon warm">{{ icon('sun') }}</span><span class="card-kicker">A QUIETER KIND OF CLEAN</span><h2>Sunday</h2><p>Just the dusting.<br>A little care, without the noise.</p><span class="card-link">Plan my Sunday {{ icon('arrow') }}</span></button>
+  <button class="action-card primary-card choice-card" name="kind" value="other"><span class="action-icon">{{ icon('calendar') }}</span><span class="card-kicker">TIME FOR A FRESH START</span><h2>Other day</h2><p>Dusting, vacuuming, and mopping,<br>balanced around what’s due.</p><span class="card-link">Plan my cleaning day {{ icon('arrow') }}</span></button>
+</form>
+<div class="info-panel">{{ icon('leaf') }}<div><strong>A routine with room for real life.</strong><p>We plan for one Sunday and two other cleaning days each calendar month. Your recorded jobs guide what comes next. Miss a day? Unfinished jobs carry forward.</p><p>Starting fresh? The first mopping cycle is spread over three months, with vacuuming starting within two. You can record earlier cleaning in “What I did”.</p></div></div>
+{% endblock %}

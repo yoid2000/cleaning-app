@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block title %}What I did · Cleaning App{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('home') }}">{{ icon('back') }} Back to overview</a>
+<div class="page-heading"><div class="eyebrow">WHAT I DID · 01 / 03</div><h1>Let’s give you credit.</h1><p class="lead">A little effort goes a long way. When did you clean?</p></div>
+<form class="panel date-panel" action="{{ url_for('record_choose') }}" method="get"><span class="large-soft-icon">{{ icon('calendar') }}</span><label for="date">Cleaning date</label><p>Today, or another day you got things done.</p><input type="date" id="date" name="date" value="{{ today.isoformat() }}" max="{{ today.isoformat() }}" required><button class="button" type="submit">Next {{ icon('arrow') }}</button></form>
+{% endblock %}

@@ -1,0 +1,3 @@
+{% extends 'base.html' %}
+{% block title %}Something needs attention · Cleaning App{% endblock %}
+{% block content %}<section class="panel empty-state"><span class="eyebrow">{{ code }}</span><h1>Let’s try that again.</h1><p>{{ error }}</p><a class="button" href="{{ url_for('home') }}">Back to overview {{ icon('arrow') }}</a></section>{% endblock %}

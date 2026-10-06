@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block title %}Record jobs · Cleaning App{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('record_choose', date=day.isoformat()) }}">{{ icon('back') }} Back to choices</a>
+<div class="page-heading"><div class="eyebrow">WHAT I DID · 03 / 03</div><h1>Every job counts.</h1><p class="lead">Select what you completed on <strong>{{ day|nice_date }}</strong>.</p></div>
+<div class="notice info">{% if day.weekday() == 6 %}Sundays are for dusting. Choose another date to record vacuuming or mopping.{% else %}Mopping includes vacuuming in the same room on the same day. Selecting a mop job also records its vacuuming.{% endif %}</div>
+<form method="post" action="{{ url_for('record_jobs') }}" id="jobs-form">{{ csrf() }}<input type="hidden" name="date" value="{{ day.isoformat() }}"><div class="room-grid">{% for room, size in rooms.items() %}<fieldset class="panel room-card"><legend>{{ room|capitalize }} <span>{{ size }} size units</span></legend>{% for task in ['dust', 'vacuum', 'mop'] %}{% set key = room ~ ':' ~ task %}<label class="job-checkbox {{ 'unavailable' if day.weekday() == 6 and task != 'dust' else '' }}"><input type="checkbox" name="jobs" value="{{ key }}" data-room="{{ room }}" data-task="{{ task }}" data-units="{{ size * tasks[task] }}" {% if key in selected %}checked{% endif %} {% if day.weekday() == 6 and task != 'dust' %}disabled{% endif %}><span>{{ task|capitalize }}</span><small>{{ size * tasks[task] }} units</small></label>{% endfor %}</fieldset>{% endfor %}</div><div class="selection-bar"><span id="selection-summary" aria-live="polite">Select the jobs you completed</span><button class="button" type="submit">Enter {{ icon('check') }}</button></div></form>
+{% endblock %}

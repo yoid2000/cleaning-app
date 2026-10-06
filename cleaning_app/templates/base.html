@@ -1,0 +1,59 @@
+{% macro icon(name, cls='') -%}
+<svg class="icon {{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{% if name == 'home' %}<path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/>
+{% elif name == 'spark' %}<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/><path d="M20 2v4M18 4h4"/>
+{% elif name == 'check' %}<path d="m5 12 4 4L19 6"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10"/>
+{% elif name == 'history' %}<path d="M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2"/>
+{% elif name == 'config' %}<path d="M4 7h5m4 0h7M4 17h9m4 0h3"/><circle cx="11" cy="7" r="2"/><circle cx="15" cy="17" r="2"/>
+{% elif name == 'arrow' %}<path d="M4 12h16m-6-6 6 6-6 6"/>
+{% elif name == 'sun' %}<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>
+{% elif name == 'calendar' %}<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2m-8 3h2"/>
+{% elif name == 'grid' %}<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+{% elif name == 'leaf' %}<path d="M5 19C0 5 13 3 21 3c0 13-6 20-16 16Zm0 0L16 8"/>
+{% elif name == 'back' %}<path d="M20 12H4m6-6-6 6 6 6"/>
+{% else %}<path d="m5 12 4 4L19 6"/>{% endif %}
+</svg>
+{%- endmacro %}
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+{% macro jobs_table(jobs) %}
+<div class="job-list">
+{% for job in jobs %}
+<div class="job-row"><span class="task-symbol {{ job.task }}">{{ icon('spark' if job.task == 'dust' else 'leaf' if job.task == 'mop' else 'grid') }}</span><div class="job-name"><strong>{{ job.task|capitalize }} <span class="room-inline">· {{ job.room|capitalize }}</span></strong><span>{% if job.task == 'mop' %}Vacuum first, then mop{% elif job.task == 'vacuum' %}A fresh start for your floors{% else %}A little attention to the details{% endif %}</span></div>{% if job.overdue %}<span class="badge overdue">Overdue</span>{% endif %}<span class="job-units">{{ job.units }} <small>units</small></span></div>
+{% endfor %}
+</div>
+{% endmacro %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#294b3d">
+  <title>{% block title %}Cleaning App{% endblock %}</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<aside class="sidebar">
+  <a class="brand" href="{{ url_for('home') }}"><span class="brand-icon">{{ icon('home') }}</span><span>cleaning app<span class="brand-sub">A little, often.</span></span></a>
+  <div class="nav-label">YOUR HOUSEHOLD</div>
+  <nav aria-label="Main navigation">
+    {% for endpoint, label, symbol, key in [('home', 'Overview', 'home', 'home'), ('what_to_do', 'What to do', 'spark', 'plan'), ('what_i_did', 'What I did', 'check', 'record'), ('history', 'History', 'history', 'history'), ('config', 'Config', 'config', 'config')] %}
+    <a href="{{ url_for(endpoint) }}" class="nav-link {{ 'active' if active == key else '' }}" {% if active == key %}aria-current="page"{% endif %}>{{ icon(symbol) }}{{ label }}{% if active == key %}<span class="nav-dot"></span>{% endif %}</a>
+    {% endfor %}
+  </nav>
+  <div class="sidebar-note">{{ icon('leaf') }}<p>A home that feels good.<br>One small job at a time.</p><span>6 rooms. A simpler routine.</span></div>
+  <div class="sidebar-footer"><span class="status-dot"></span>Your home, in balance</div>
+</aside>
+<div class="page-shell">
+  <header class="topbar"><span>HOME, A LITTLE HAPPIER</span><span class="topbar-date">{{ icon('calendar') }}{{ today.strftime('%d %B %Y') }}</span></header>
+  <main id="main">
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="notice {{ category }}" role="status">{{ icon('check') }}<span>{{ message }}</span></div>{% endfor %}{% endwith %}
+    {% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="page-footer"><span>Less thinking. More living.</span><span>Made for your everyday.</span></footer>
+</div>
+</body>
+</html>
