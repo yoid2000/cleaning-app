@@ -4,8 +4,15 @@ Follow these steps on the Linux machine. The package commands below are for
 Ubuntu/Debian; the service configuration also works on other Linux distributions
 that use systemd, with their equivalent Python and curl packages.
 
-You need sudo access, Python 3.10 or newer, and a copy of this project's files.
-The app runs through its existing Waitress server.
+You need sudo access, Python 3.10 or newer, and an internet connection to download
+the project from GitHub and install its dependencies. The app runs through its
+existing Waitress server.
+
+This setup listens on `0.0.0.0` at TCP port `8123` so other machines on the same
+WLAN can connect. Port 8123 works as long as another service is not using it.
+On those machines, use the Linux server's LAN IP address in the browser.
+`127.0.0.1` only refers to the machine you are currently using; it is suitable
+for checks on the server itself.
 
 Installation paths used throughout:
 
@@ -17,7 +24,7 @@ Installation paths used throughout:
 
 ```sh
 sudo apt update
-sudo apt install python3 python3-venv curl nano
+sudo apt install git python3 python3-venv curl nano
 python3 --version
 ps -p 1 -o comm=
 ```
@@ -25,21 +32,35 @@ ps -p 1 -o comm=
 Check that Python is version 3.10 or newer and that the last command prints
 `systemd`. These instructions assume a normal Linux host booted with systemd.
 
-## 2. Copy the application into its installation directory
+## 2. Download the application from GitHub and install its files
 
-Copy or clone the project onto the Linux machine, then enter that source folder.
-Replace `/path/to/cleaning-app` with its actual location:
+Clone the project into a source directory under your Linux user account:
 
 ```sh
-cd /path/to/cleaning-app
+mkdir -p ~/src
+cd ~/src
+git clone https://github.com/yoid2000/cleaning-app.git
+cd cleaning-app
+```
+
+If you already cloned the project, enter that checkout and run
+`git pull --ff-only` instead of cloning it again. Run Git commands as your normal
+user; use sudo for the installation commands below.
+
+From the cloned source directory, copy the application into its installation
+directory:
+
+```sh
 sudo install -d -m 0755 /opt/cleaning-app
 sudo install -m 0644 app.py requirements.txt /opt/cleaning-app/
 sudo cp -R cleaning_app /opt/cleaning-app/
 sudo chmod -R a+rX /opt/cleaning-app/cleaning_app
 ```
 
-This copies the server, application code, templates, and static assets. Create a
-new virtual environment on Linux in the next step.
+This copies the server, application code, templates, and static assets. Your
+GitHub checkout remains at `~/src/cleaning-app`; the service runs the installed
+copy at `/opt/cleaning-app`. Create a new virtual environment on Linux in the
+next step.
 
 ## 3. Create the Python virtual environment and install dependencies
 
@@ -78,16 +99,16 @@ saved assignments, and the session secret.
 ## 5. Test the server manually
 
 ```sh
-sudo -u cleaning-app env CLEANING_DATABASE=/var/lib/cleaning-app/cleaning.sqlite3 CLEANING_TIMEZONE=Europe/Berlin /opt/cleaning-app/.venv/bin/python /opt/cleaning-app/app.py --host 127.0.0.1 --port 8000
+sudo -u cleaning-app env CLEANING_DATABASE=/var/lib/cleaning-app/cleaning.sqlite3 CLEANING_TIMEZONE=Europe/Berlin /opt/cleaning-app/.venv/bin/python /opt/cleaning-app/app.py --host 0.0.0.0 --port 8123
 ```
 
 Leave this terminal running. In a second terminal on the same Linux machine:
 
 ```sh
-curl --fail --silent --output /dev/null --write-out 'HTTP %{http_code}\n' http://127.0.0.1:8000/
+curl --fail --silent --output /dev/null --write-out 'HTTP %{http_code}\n' http://127.0.0.1:8123/
 ```
 
-Expect `HTTP 200`. You can also open http://127.0.0.1:8000 in a browser on that
+Expect `HTTP 200`. You can also open http://127.0.0.1:8123 in a browser on that
 machine. Return to the first terminal and press Ctrl+C to stop the manual server
 before starting the service.
 
@@ -107,8 +128,8 @@ User=cleaning-app
 Group=cleaning-app
 WorkingDirectory=/opt/cleaning-app
 Environment=PYTHONUNBUFFERED=1
-Environment=CLEANING_HOST=127.0.0.1
-Environment=CLEANING_PORT=8000
+Environment=CLEANING_HOST=0.0.0.0
+Environment=CLEANING_PORT=8123
 Environment=CLEANING_DATABASE=/var/lib/cleaning-app/cleaning.sqlite3
 Environment=CLEANING_TIMEZONE=Europe/Berlin
 ExecStart=/opt/cleaning-app/.venv/bin/python /opt/cleaning-app/app.py
@@ -132,44 +153,48 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now cleaning-app.service
 sudo systemctl status cleaning-app.service --no-pager
 sudo systemctl is-enabled cleaning-app.service
-curl --fail --silent --output /dev/null --write-out 'HTTP %{http_code}\n' http://127.0.0.1:8000/
+curl --fail --silent --output /dev/null --write-out 'HTTP %{http_code}\n' http://127.0.0.1:8123/
 ```
 
 Expect `active (running)`, `enabled`, and `HTTP 200`. Enabling the service makes
 it start after every reboot without a user login; `--now` also starts it now.
 
-## 8. Optionally allow access from your home network
+## 8. Connect from another machine on the same WLAN
 
-The configuration above accepts connections from the Linux machine itself.
-To use the app from another device on your trusted home network, edit the unit:
+The service above already listens on all IPv4 interfaces. Find the Linux
+machine's LAN address:
 
 ```sh
-sudo nano /etc/systemd/system/cleaning-app.service
+hostname -I
 ```
 
-Change:
+Open `http://<linux-machine-LAN-IP>:8123` on your other device, replacing the
+placeholder with the machine's WLAN/LAN address (for example,
+`http://192.168.1.50:8123`). Both machines should be on the same trusted network.
+Use the actual LAN IP in the browser; `0.0.0.0` is the server's listening setting.
+
+If you already installed an earlier version of this guide, edit
+`/etc/systemd/system/cleaning-app.service` with
+`sudo nano /etc/systemd/system/cleaning-app.service` and set:
 
 ```ini
 Environment=CLEANING_HOST=0.0.0.0
+Environment=CLEANING_PORT=8123
 ```
 
-Then apply the change and find the machine's address:
+Then apply that change:
 
 ```sh
 sudo systemctl daemon-reload
 sudo systemctl restart cleaning-app.service
-hostname -I
 ```
 
-Open `http://<linux-machine-LAN-IP>:8000` on your other device, replacing the
-placeholder with the machine's LAN address (for example, 192.168.1.50).
-
-If a firewall is enabled, allow TCP port 8000 from your home subnet. For UFW,
+If a firewall is enabled, allow TCP port 8123 from your home subnet. For UFW,
 check its status and use your actual subnet in place of this example:
 
 ```sh
 sudo ufw status
-sudo ufw allow from 192.168.1.0/24 to any port 8000 proto tcp
+sudo ufw allow from 192.168.1.0/24 to any port 8123 proto tcp
 ```
 
 The app has no account authentication and is intended for a trusted private
@@ -189,11 +214,14 @@ After it comes back, reconnect or open a terminal and run:
 ```sh
 sudo systemctl is-enabled cleaning-app.service
 sudo systemctl is-active cleaning-app.service
-curl --fail --silent --output /dev/null --write-out 'HTTP %{http_code}\n' http://127.0.0.1:8000/
+curl --fail --silent --output /dev/null --write-out 'HTTP %{http_code}\n' http://127.0.0.1:8123/
 ```
 
 Expect `enabled`, `active`, and `HTTP 200`. Existing cleaning history remains in
 `/var/lib/cleaning-app/cleaning.sqlite3` across reboots.
+
+Also check that another WLAN machine can still open the app using the server's
+LAN IP address. A DHCP reservation in your router can keep that address stable.
 
 ## Service management and troubleshooting
 
@@ -229,7 +257,7 @@ sudo systemctl disable --now cleaning-app.service
 
 If startup fails, check the logs for the cause. Common causes are a wrong path
 in `ExecStart`, missing Python dependencies, a data directory the service user
-cannot write, or another process already listening on port 8000. After fixing
+cannot write, or another process already listening on port 8123. After fixing
 the cause, run:
 
 ```sh
@@ -239,7 +267,8 @@ sudo systemctl start cleaning-app.service
 
 If the local curl check works but another device cannot connect, check that
 `CLEANING_HOST=0.0.0.0`, the LAN IP address is correct, and the firewall permits
-your home subnet.
+your home subnet. A guest WLAN or a router's client-isolation setting may also
+prevent devices from connecting to each other.
 
 Before backing up the database, stop the service and copy
 `/var/lib/cleaning-app/cleaning.sqlite3` to your backup location, then start the
