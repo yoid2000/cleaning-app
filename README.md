@@ -55,7 +55,7 @@ trusted private network. The default binds only to the local computer.
 | --- | ---: | --- |
 | Vacuum | 1 | Every 2 calendar months, plus every mop day |
 | Dust | 2 | Every calendar month |
-| Mop | 4 | Every 3 calendar months |
+| Mop | 4 | Kitchen every calendar month; other rooms every 3 calendar months |
 
 | Room | Size units |
 | --- | ---: |
@@ -76,31 +76,37 @@ assigned or accepted on a Sunday.
 
 Frequencies use **calendar months**, not a fixed number of days. For example,
 vacuuming in October makes the next vacuum due in December; mopping in October
-makes the next mop due in January. A job is eligible from the start of its due
+makes the next mop due in January for other rooms, or November for the kitchen.
+A job is eligible from the start of its due
 month. It can therefore be completed early or late in that month. This matches the
 three-days-per-month routine without requiring fixed dates for cleaning days.
 
 On a fresh installation, dusting is due for all rooms in the first month. The
 rooms are split into three cohorts with balanced total size (9, 10, and 11 with
-the defaults). Their first mops are due in months one, two, and three. Every room's
+the defaults). Other rooms' first mops are due in months one, two, and three.
+Kitchen mopping is due in the first month and every month thereafter. Every room's
 first vacuum is due within the first two months. This starts a sustainable rhythm
 without treating every unrecorded job as overdue immediately. Existing cleaning
 can be entered through **What I did**; actual completion history takes precedence
 over the initial schedule.
 
-Each plan allocates all due work across the remaining days of the monthly target:
+Each plan balances due work across the remaining days of the monthly target:
 one Sunday and two non-Sundays. A cleaning day is a distinct date with at least one
 recorded job. Vacuum/mop pairs are indivisible, and Sunday can only receive dusting.
 The scheduler searches the valid allocations and minimizes the sum of squared daily
-workloads. Ties favor older jobs on the requested day. Large indivisible room jobs
-can prevent perfectly equal daily workloads.
+workloads. Ties favor older jobs on the requested day. A session's workload is
+limited to the largest balanced session in a simulated year of regular cleaning,
+using the current room sizes, task weights, and starting cohorts (50 units with
+the defaults). Large indivisible room jobs can prevent perfectly equal workloads.
 
 After work is recorded, the next plan recalculates from actual history. Backdated
 records do not replace newer completions. Unfinished work remains due; overdue
-work carries into future months. If the chosen day is a Sunday and the month's
-two non-Sundays are already used, outstanding floor jobs are explicitly flagged
-as requiring an additional non-Sunday day. If you miss sessions, completing all
-frequency targets can require extra work or an extra day.
+work carries into future months. Missing a week lets the schedule slip; it does
+not increase the usual workload to meet a calendar deadline. If all due work
+cannot fit within the normal workload, older jobs take priority and excess jobs
+carry forward to later sessions, even beyond the current month. Floor jobs also
+carry forward when no non-Sunday slot is available. The next due month is based
+on actual completion, so completing a job late shifts its next occurrence.
 
 ## Storage and server settings
 
@@ -132,6 +138,7 @@ CSRF protection.
 
 The suite covers the application workflows, SQLite persistence, duplicate and
 backdated entries, validation, Sunday rules, paired floor jobs, optimal workload
-partitioning, and two-year schedule simulations for every ordering of the three
+partitioning, monthly kitchen mopping, missed sessions without increased workload,
+and two-year schedule simulations for every ordering of the three
 monthly day types. With the default settings and regular completion, those
 simulations meet all calendar-month frequencies in three days per month.

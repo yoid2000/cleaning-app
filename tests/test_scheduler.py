@@ -5,6 +5,7 @@ import pytest
 
 from cleaning_app.scheduler import (
     INTERVALS, ROOMS, TASKS, due_bundles, initial_phases, make_plan, month_number,
+    task_interval,
 )
 
 
@@ -66,7 +67,7 @@ def test_two_years_meet_cadence_in_three_days_per_month(kinds):
                 assert job["task"] == "dust" or cursor.weekday() != 6
                 key = (job["room"], job["task"])
                 if key in latest:
-                    assert number - month_number(latest[key]) <= INTERVALS[job["task"]]
+                    assert number - month_number(latest[key]) <= task_interval(*key)
                 latest[key] = cursor
             if plan["jobs"]:
                 done_days.append(cursor)
@@ -76,7 +77,8 @@ def test_two_years_meet_cadence_in_three_days_per_month(kinds):
         assert remaining == []
         assert all(month_number(latest[(room, "dust")]) == number for room in ROOMS)
         for room in ROOMS:
-            for task, interval in INTERVALS.items():
+            for task in INTERVALS:
+                interval = task_interval(room, task)
                 if month >= interval - 1:
                     assert (room, task) in latest
                     assert number - month_number(latest[(room, task)]) < interval
@@ -93,7 +95,67 @@ def test_overdue_work_is_carried_forward_and_empty_sunday_defers_floor_work():
     assert len(plan["deferred"]) == 12
     assert all(j["overdue"] for j in plan["deferred"])
     later = plan_for("other", date(2027, 4, 26), latest, [date(2027, 4, 3), date(2027, 4, 10)])
-    assert len(later["jobs"]) == 12
+    assert 0 < len(later["jobs"]) < 12
+    assert later["units"] <= later["workload_limit"]
+    assert len(later["jobs"]) + len(later["deferred"]) == 12
+
+
+def test_kitchen_mopping_starts_immediately_and_repeats_monthly():
+    phases = initial_phases(ROOMS)
+    assert phases["kitchen"] == 2
+    started = date(2026, 10, 1)
+    bundles = due_bundles(started, started, phases, {}, TASKS, ROOMS)
+    assert any(b.room == "kitchen" and b.tasks == ("vacuum", "mop") for b in bundles)
+    latest = {(room, task): date(2026, 10, 26) for room in ROOMS for task in TASKS}
+    for month in (11, 12, 1):
+        today = date(2027 if month == 1 else 2026, month, 1)
+        bundles = due_bundles(today, started, phases, latest, TASKS, ROOMS)
+        mopped = {b.room for b in bundles if "mop" in b.tasks}
+        assert mopped == (set(ROOMS) if month == 1 else {"kitchen"})
+
+
+@pytest.mark.parametrize("delay", [7, 28, 180])
+def test_missed_sessions_do_not_increase_the_usual_workload(delay):
+    started = date(2026, 10, 1)
+    phases = initial_phases(ROOMS)
+    latest = {}
+    completed = []
+    for kind, day in [("other", date(2026, 10, 5)), ("sunday", date(2026, 10, 11))]:
+        plan = make_plan(day, started, phases, latest, completed, TASKS, ROOMS, kind)
+        for job in plan["jobs"]:
+            latest[job["room"], job["task"]] = day
+        completed.append(day)
+    scheduled_day = date(2026, 10, 26)
+    on_time = make_plan(scheduled_day, started, phases, latest, completed, TASKS, ROOMS, "other")
+    delayed_day = scheduled_day + timedelta(days=delay)
+    delayed = make_plan(delayed_day, started, phases, latest, completed, TASKS, ROOMS, "other")
+    assert delayed["workload_limit"] == on_time["workload_limit"]
+    assert all(day["units"] <= on_time["workload_limit"] for day in delayed["days"])
+    due = {(b.room, task) for b in due_bundles(delayed_day, started, phases, latest, TASKS, ROOMS)
+           for task in b.tasks}
+    assigned = [(j["room"], j["task"]) for day in delayed["days"] for j in day["jobs"]]
+    carried = [(j["room"], j["task"]) for j in delayed["deferred"]]
+    assert set(assigned + carried) == due
+    assert len(assigned + carried) == len(due)
+    assert delayed["jobs"]
+
+
+def test_overdue_work_progresses_without_a_catch_up_session():
+    today = date(2027, 4, 5)
+    latest = {(room, "dust"): today for room in ROOMS}
+    completed = [date(2027, 4, 1), date(2027, 4, 3)]
+    remaining = {(room, task) for room in ROOMS for task in ("vacuum", "mop")}
+    for _ in range(6):
+        plan = plan_for("other", today, latest, completed)
+        assert plan["units"] <= plan["workload_limit"]
+        for job in plan["jobs"]:
+            key = job["room"], job["task"]
+            latest[key] = today
+            remaining.discard(key)
+        if plan["jobs"]:
+            completed.append(today)
+        today += timedelta(days=7)
+    assert not remaining
 
 
 def test_configuration_changes_job_costs():

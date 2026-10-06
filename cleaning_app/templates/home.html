@@ -11,7 +11,7 @@
 <section class="rhythm-grid" aria-label="Cleaning frequencies">
   <div class="rhythm-card"><span class="task-symbol dust">{{ icon('spark') }}</span><div><h3>Dust</h3><p>Every month</p></div><span class="cadence">01<span>MONTH</span></span></div>
   <div class="rhythm-card"><span class="task-symbol vacuum">{{ icon('grid') }}</span><div><h3>Vacuum</h3><p>Every other month*</p></div><span class="cadence">02<span>MONTHS</span></span></div>
-  <div class="rhythm-card"><span class="task-symbol mop">{{ icon('leaf') }}</span><div><h3>Mop</h3><p>Every three months</p></div><span class="cadence">03<span>MONTHS</span></span></div>
+  <div class="rhythm-card"><span class="task-symbol mop">{{ icon('leaf') }}</span><div><h3>Mop</h3><p>Kitchen monthly; other rooms every three months</p></div><span class="cadence">03<span>MONTHS</span></span></div>
 </section>
 <p class="quiet-note">{{ icon('sun') }} Sundays are for dusting. *Vacuuming is also included whenever you mop.</p>
 <section class="recent-section"><div class="section-heading"><h2>A little progress</h2><a href="{{ url_for('history') }}">View history {{ icon('arrow') }}</a></div>{% if recent %}<div class="panel recent-list">{% for entry in recent %}<div><span class="soft-icon">{{ icon('check') }}</span><div><strong>{{ entry.day|nice_date }}</strong><span>{{ entry.count }} jobs completed</span></div><span class="badge">{{ entry.units }} units</span></div>{% endfor %}</div>{% else %}<div class="empty-inline">{{ icon('leaf') }}<div><strong>A fresh start.</strong><p>Your completed jobs will appear here. Ready when you are.</p></div></div>{% endif %}</section>

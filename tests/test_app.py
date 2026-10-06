@@ -143,3 +143,21 @@ def test_saved_plan_and_secret_survive_restart(app, client):
     assert reopened.config["SECRET_KEY"] == app.config["SECRET_KEY"]
     with reopened.app_context():
         assert db.last_assignment() == old_plan
+
+
+def test_missed_sessions_save_a_bounded_plan_and_show_carried_work(app, client):
+    app.config["TODAY"] = date(2027, 4, 26)
+    post(client, "/record/jobs", {"date": "2027-04-03", "jobs": [f"{room}:dust" for room in ROOMS]})
+    post(client, "/record/jobs", {"date": "2027-04-10", "jobs": ["bath:dust"]})
+    response = post(client, "/what-to-do", {"kind": "other"})
+    assert response.status_code == 200
+    assert b"jobs carry forward to later cleaning days" in response.data
+    with app.app_context():
+        plan = db.last_assignment()
+    assert plan["units"] <= plan["workload_limit"]
+    assert plan["deferred"]
+    assert len(plan["jobs"]) + len(plan["deferred"]) == 12
+    post(client, "/record/last", {"date": "2027-04-26", "assignment_id": plan["id"]})
+    recorded = {(r["room"], r["task"]) for r in rows(app) if r["day"] == "2027-04-26"}
+    assert recorded == {(j["room"], j["task"]) for j in plan["jobs"]}
+    assert not recorded.intersection((j["room"], j["task"]) for j in plan["deferred"])
