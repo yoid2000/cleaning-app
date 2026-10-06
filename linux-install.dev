@@ -1,0 +1,252 @@
+# Linux installation and automatic startup
+
+Follow these steps on the Linux machine. The package commands below are for
+Ubuntu/Debian; the service configuration also works on other Linux distributions
+that use systemd, with their equivalent Python and curl packages.
+
+You need sudo access, Python 3.10 or newer, and a copy of this project's files.
+The app runs through its existing Waitress server.
+
+Installation paths used throughout:
+
+- Application and Python virtual environment: /opt/cleaning-app
+- Database, history, configuration, and session secret: /var/lib/cleaning-app
+- Service definition: /etc/systemd/system/cleaning-app.service
+
+## 1. Install the Linux prerequisites
+
+```sh
+sudo apt update
+sudo apt install python3 python3-venv curl nano
+python3 --version
+ps -p 1 -o comm=
+```
+
+Check that Python is version 3.10 or newer and that the last command prints
+`systemd`. These instructions assume a normal Linux host booted with systemd.
+
+## 2. Copy the application into its installation directory
+
+Copy or clone the project onto the Linux machine, then enter that source folder.
+Replace `/path/to/cleaning-app` with its actual location:
+
+```sh
+cd /path/to/cleaning-app
+sudo install -d -m 0755 /opt/cleaning-app
+sudo install -m 0644 app.py requirements.txt /opt/cleaning-app/
+sudo cp -R cleaning_app /opt/cleaning-app/
+sudo chmod -R a+rX /opt/cleaning-app/cleaning_app
+```
+
+This copies the server, application code, templates, and static assets. Create a
+new virtual environment on Linux in the next step.
+
+## 3. Create the Python virtual environment and install dependencies
+
+```sh
+sudo python3 -m venv /opt/cleaning-app/.venv
+sudo /opt/cleaning-app/.venv/bin/python -m pip install -r /opt/cleaning-app/requirements.txt
+```
+
+The service will use this interpreter directly, so you do not need to activate
+the virtual environment or log in before it starts.
+
+## 4. Create a service account and data directory
+
+Run the account creation command once:
+
+```sh
+sudo useradd --system --user-group --home-dir /var/lib/cleaning-app --no-create-home --shell /usr/sbin/nologin cleaning-app
+sudo install -d -o cleaning-app -g cleaning-app -m 0750 /var/lib/cleaning-app
+```
+
+The app runs as `cleaning-app`, which can write its database in the data
+directory. The application files and virtual environment remain owned by root.
+
+If migrating an existing installation, stop that app and copy its database onto
+the Linux machine before continuing. For example, from the source folder, if
+the existing database is at `instance/cleaning.sqlite3`:
+
+```sh
+sudo install -o cleaning-app -g cleaning-app -m 0600 instance/cleaning.sqlite3 /var/lib/cleaning-app/cleaning.sqlite3
+```
+
+Skip this command for a fresh installation. The app creates its database on
+first startup. Importing the existing database preserves history, configuration,
+saved assignments, and the session secret.
+
+## 5. Test the server manually
+
+```sh
+sudo -u cleaning-app env CLEANING_DATABASE=/var/lib/cleaning-app/cleaning.sqlite3 CLEANING_TIMEZONE=Europe/Berlin /opt/cleaning-app/.venv/bin/python /opt/cleaning-app/app.py --host 127.0.0.1 --port 8000
+```
+
+Leave this terminal running. In a second terminal on the same Linux machine:
+
+```sh
+curl --fail --silent --output /dev/null --write-out 'HTTP %{http_code}\n' http://127.0.0.1:8000/
+```
+
+Expect `HTTP 200`. You can also open http://127.0.0.1:8000 in a browser on that
+machine. Return to the first terminal and press Ctrl+C to stop the manual server
+before starting the service.
+
+## 6. Create the systemd service
+
+Paste this entire command into the Linux terminal:
+
+```sh
+sudo tee /etc/systemd/system/cleaning-app.service > /dev/null <<'EOF'
+[Unit]
+Description=Cleaning App household cleaning planner
+After=network.target
+
+[Service]
+Type=simple
+User=cleaning-app
+Group=cleaning-app
+WorkingDirectory=/opt/cleaning-app
+Environment=PYTHONUNBUFFERED=1
+Environment=CLEANING_HOST=127.0.0.1
+Environment=CLEANING_PORT=8000
+Environment=CLEANING_DATABASE=/var/lib/cleaning-app/cleaning.sqlite3
+Environment=CLEANING_TIMEZONE=Europe/Berlin
+ExecStart=/opt/cleaning-app/.venv/bin/python /opt/cleaning-app/app.py
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+`Restart=on-failure` restarts the server after a crash. The next step enables
+startup during boot. Adjust `CLEANING_TIMEZONE` if your household uses another
+timezone.
+
+## 7. Start the service and enable it at boot
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now cleaning-app.service
+sudo systemctl status cleaning-app.service --no-pager
+sudo systemctl is-enabled cleaning-app.service
+curl --fail --silent --output /dev/null --write-out 'HTTP %{http_code}\n' http://127.0.0.1:8000/
+```
+
+Expect `active (running)`, `enabled`, and `HTTP 200`. Enabling the service makes
+it start after every reboot without a user login; `--now` also starts it now.
+
+## 8. Optionally allow access from your home network
+
+The configuration above accepts connections from the Linux machine itself.
+To use the app from another device on your trusted home network, edit the unit:
+
+```sh
+sudo nano /etc/systemd/system/cleaning-app.service
+```
+
+Change:
+
+```ini
+Environment=CLEANING_HOST=0.0.0.0
+```
+
+Then apply the change and find the machine's address:
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl restart cleaning-app.service
+hostname -I
+```
+
+Open `http://<linux-machine-LAN-IP>:8000` on your other device, replacing the
+placeholder with the machine's LAN address (for example, 192.168.1.50).
+
+If a firewall is enabled, allow TCP port 8000 from your home subnet. For UFW,
+check its status and use your actual subnet in place of this example:
+
+```sh
+sudo ufw status
+sudo ufw allow from 192.168.1.0/24 to any port 8000 proto tcp
+```
+
+The app has no account authentication and is intended for a trusted private
+network. Keep access restricted to that network; do not forward this port from
+your internet router.
+
+## 9. Verify automatic startup after a reboot
+
+When ready to reboot the machine:
+
+```sh
+sudo reboot
+```
+
+After it comes back, reconnect or open a terminal and run:
+
+```sh
+sudo systemctl is-enabled cleaning-app.service
+sudo systemctl is-active cleaning-app.service
+curl --fail --silent --output /dev/null --write-out 'HTTP %{http_code}\n' http://127.0.0.1:8000/
+```
+
+Expect `enabled`, `active`, and `HTTP 200`. Existing cleaning history remains in
+`/var/lib/cleaning-app/cleaning.sqlite3` across reboots.
+
+## Service management and troubleshooting
+
+Show recent logs:
+
+```sh
+sudo journalctl -u cleaning-app.service -n 100 --no-pager
+```
+
+Follow live logs (Ctrl+C exits the log viewer):
+
+```sh
+sudo journalctl -u cleaning-app.service -f
+```
+
+Restart after updating application files or dependencies:
+
+```sh
+sudo systemctl restart cleaning-app.service
+```
+
+Stop the app until the next start or reboot:
+
+```sh
+sudo systemctl stop cleaning-app.service
+```
+
+Stop it and turn off automatic startup:
+
+```sh
+sudo systemctl disable --now cleaning-app.service
+```
+
+If startup fails, check the logs for the cause. Common causes are a wrong path
+in `ExecStart`, missing Python dependencies, a data directory the service user
+cannot write, or another process already listening on port 8000. After fixing
+the cause, run:
+
+```sh
+sudo systemctl reset-failed cleaning-app.service
+sudo systemctl start cleaning-app.service
+```
+
+If the local curl check works but another device cannot connect, check that
+`CLEANING_HOST=0.0.0.0`, the LAN IP address is correct, and the firewall permits
+your home subnet.
+
+Before backing up the database, stop the service and copy
+`/var/lib/cleaning-app/cleaning.sqlite3` to your backup location, then start the
+service again. Keep the backup outside the application directory.
+
+## References
+
+- [Python virtual environments](https://docs.python.org/3/library/venv.html)
+- [systemd service manual source](https://github.com/systemd/systemd/blob/main/man/systemd.service.xml)
+- [systemctl manual source](https://github.com/systemd/systemd/blob/main/man/systemctl.xml)

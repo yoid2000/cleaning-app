@@ -26,6 +26,9 @@ python3 -m venv .venv
 
 Open **http://127.0.0.1:8000**. Stop the server with Ctrl+C.
 
+For Linux installation with automatic startup after reboot, follow
+[linux-install.dev](linux-install.dev).
+
 To listen on a different port or accept connections from your home network:
 
 ```powershell
