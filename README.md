@@ -28,6 +28,10 @@ Open **http://127.0.0.1:8000**. Stop the server with Ctrl+C.
 
 For Linux installation with automatic startup after reboot, follow
 [linux-install.dev](linux-install.dev).
+For an existing installation from that guide, run
+`bash ~/src/cleaning-app/update-linux.sh` as your normal Linux user to pull updates,
+install dependencies, and restart the service. See the guide's update section for
+first-time use and custom settings.
 
 To listen on a different port or accept connections from your home network:
 

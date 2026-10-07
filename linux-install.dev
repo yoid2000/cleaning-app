@@ -223,6 +223,41 @@ Expect `enabled`, `active`, and `HTTP 200`. Existing cleaning history remains in
 Also check that another WLAN machine can still open the app using the server's
 LAN IP address. A DHCP reservation in your router can keep that address stable.
 
+## Updating an existing installation
+
+The [update-linux.sh](update-linux.sh) script updates the installation above and
+restarts the running systemd service. Run it as your normal Linux user, without
+putting `sudo` before the script:
+
+```sh
+cd ~/src/cleaning-app
+git pull --ff-only
+bash update-linux.sh
+```
+
+The first pull downloads the script if your checkout does not have it yet. For
+later updates, just run `bash ~/src/cleaning-app/update-linux.sh`; the script pulls
+the current branch itself. Commit and push changes from your development machine
+before running it on the Linux device.
+
+The script requires a clean source checkout and an already running service. It
+pulls with `--ff-only`, stops the service, copies application files into
+`/opt/cleaning-app`, installs dependencies into its existing virtual environment,
+restarts `cleaning-app.service`, and checks http://127.0.0.1:8123/. There is a short
+interruption while files and dependencies are installed. History, configuration,
+saved assignments, and the session secret stay in `/var/lib/cleaning-app`.
+
+If installation fails after stopping the service, the script attempts to start
+it again and exits with an error. It does not automatically undo file or dependency
+changes. Use the service logs below to investigate a failed update.
+
+For a different installation directory, service name, or local port, override the
+corresponding settings, for example:
+
+```sh
+CLEANING_APP_DIR=/opt/cleaning-app CLEANING_SERVICE=cleaning-app.service CLEANING_HEALTH_URL=http://127.0.0.1:8000/ bash ~/src/cleaning-app/update-linux.sh
+```
+
 ## Service management and troubleshooting
 
 Show recent logs:
