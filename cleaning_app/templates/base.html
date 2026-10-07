@@ -18,7 +18,7 @@
 {% macro jobs_table(jobs) %}
 <div class="job-list">
 {% for job in jobs %}
-<div class="job-row"><span class="task-symbol {{ job.task }}">{{ icon('spark' if job.task == 'dust' else 'leaf' if job.task == 'mop' else 'grid') }}</span><div class="job-name"><strong>{{ job.task|capitalize }} <span class="room-inline">· {{ job.room|capitalize }}</span></strong><span>{% if job.task == 'mop' %}Vacuum first, then mop{% elif job.task == 'vacuum' %}A fresh start for your floors{% else %}A little attention to the details{% endif %}</span></div>{% if job.overdue %}<span class="badge overdue">Overdue</span>{% endif %}<span class="job-units">{{ job.units }} <small>units</small></span></div>
+<div class="job-row"><span class="task-symbol {{ job.task }}">{{ icon('spark' if job.task == 'dust' else 'leaf' if job.task == 'mop' else 'grid') }}</span><div class="job-name"><strong>{{ job.task|capitalize }} <span class="room-inline">· {{ job.room|capitalize }}</span></strong><span>{% if job.task == 'mop' %}Vacuum first, then mop{% elif job.task == 'shower' %}Monthly shower cleaning{% elif job.task == 'vacuum' %}A fresh start for your floors{% else %}A little attention to the details{% endif %}</span></div>{% if job.overdue %}<span class="badge overdue">Overdue</span>{% endif %}<span class="job-units">{{ job.units }} <small>units</small></span></div>
 {% endfor %}
 </div>
 {% endmacro %}

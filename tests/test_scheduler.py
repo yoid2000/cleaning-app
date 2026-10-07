@@ -4,8 +4,8 @@ from itertools import permutations, product
 import pytest
 
 from cleaning_app.scheduler import (
-    INTERVALS, ROOMS, TASKS, due_bundles, initial_phases, make_plan, month_number,
-    task_interval,
+    ROOMS, TASKS, due_bundles, initial_phases, make_plan, month_number,
+    job_units, room_tasks, task_interval,
 )
 
 
@@ -19,10 +19,10 @@ def test_initial_cohorts_balance_room_sizes():
     assert sorted(sum(ROOMS[r] for r, phase in phases.items() if phase == i) for i in range(3)) == [9, 10, 11]
 
 
-def test_sunday_only_dust_and_mops_have_vacuum_partners():
+def test_sunday_only_dust_or_shower_and_mops_have_vacuum_partners():
     sunday = plan_for("sunday")
     assert sunday["jobs"]
-    assert all(j["task"] == "dust" for j in sunday["jobs"])
+    assert all(j["task"] in {"dust", "shower"} for j in sunday["jobs"])
     for day in sunday["days"]:
         jobs = {(j["room"], j["task"]) for j in day["jobs"]}
         assert all((room, "vacuum") in jobs for room, task in jobs if task == "mop")
@@ -64,7 +64,7 @@ def test_two_years_meet_cadence_in_three_days_per_month(kinds):
                 cursor += timedelta(days=1)
             plan = make_plan(cursor, started, phases, latest, done_days, TASKS, ROOMS, kind)
             for job in plan["jobs"]:
-                assert job["task"] == "dust" or cursor.weekday() != 6
+                assert job["task"] in {"dust", "shower"} or cursor.weekday() != 6
                 key = (job["room"], job["task"])
                 if key in latest:
                     assert number - month_number(latest[key]) <= task_interval(*key)
@@ -76,20 +76,22 @@ def test_two_years_meet_cadence_in_three_days_per_month(kinds):
         remaining = due_bundles(first.replace(day=28), started, phases, latest, TASKS, ROOMS)
         assert remaining == []
         assert all(month_number(latest[(room, "dust")]) == number for room in ROOMS)
+        assert month_number(latest[("bath", "shower")]) == number
         for room in ROOMS:
-            for task in INTERVALS:
+            for task in room_tasks(room):
                 interval = task_interval(room, task)
                 if month >= interval - 1:
                     assert (room, task) in latest
                     assert number - month_number(latest[(room, task)]) < interval
         all_loads.extend(month_loads)
-    # The living room vacuum/mop pair alone weighs 45; all days stay <= 50.
-    assert max(all_loads) <= 50
+    # The shower alone weighs 60; all regular sessions stay within the limit.
+    assert max(all_loads) <= plan["workload_limit"]
 
 
 def test_overdue_work_is_carried_forward_and_empty_sunday_defers_floor_work():
     today = date(2027, 4, 25)  # Sunday, with both weekday sessions used.
     latest = {(room, "dust"): date(2027, 4, 3) for room in ROOMS}
+    latest["bath", "shower"] = date(2027, 4, 3)
     plan = plan_for("sunday", today, latest, [date(2027, 4, 3), date(2027, 4, 10)])
     assert plan["jobs"] == []
     assert len(plan["deferred"]) == 12
@@ -106,7 +108,7 @@ def test_kitchen_mopping_starts_immediately_and_repeats_monthly():
     started = date(2026, 10, 1)
     bundles = due_bundles(started, started, phases, {}, TASKS, ROOMS)
     assert any(b.room == "kitchen" and b.tasks == ("vacuum", "mop") for b in bundles)
-    latest = {(room, task): date(2026, 10, 26) for room in ROOMS for task in TASKS}
+    latest = {(room, task): date(2026, 10, 26) for room in ROOMS for task in room_tasks(room)}
     for month in (11, 12, 1):
         today = date(2027 if month == 1 else 2026, month, 1)
         bundles = due_bundles(today, started, phases, latest, TASKS, ROOMS)
@@ -159,12 +161,12 @@ def test_overdue_work_progresses_without_a_catch_up_session():
 
 
 def test_configuration_changes_job_costs():
-    tasks = {"vacuum": 3, "dust": 4, "mop": 8}
+    tasks = {"vacuum": 3, "dust": 4, "mop": 8, "shower": 60}
     rooms = {**ROOMS, "living": 20}
     plan = plan_for(tasks=tasks, rooms=rooms)
     for day in plan["days"]:
         assert day["units"] == sum(j["units"] for j in day["jobs"])
-        assert all(j["units"] == tasks[j["task"]] * rooms[j["room"]] for j in day["jobs"])
+        assert all(j["units"] == job_units(j["room"], j["task"], tasks, rooms) for j in day["jobs"])
 
 
 def test_calendar_months_handle_year_and_leap_boundaries():
@@ -174,3 +176,33 @@ def test_calendar_months_handle_year_and_leap_boundaries():
     latest = {(room, "vacuum"): date(2028, 2, 29) for room in ROOMS}
     bundles = due_bundles(date(2028, 4, 1), date(2028, 2, 1), initial_phases(ROOMS), latest, TASKS, ROOMS)
     assert all(any(b.room == room and "vacuum" in b.tasks for b in bundles) for room in ROOMS)
+
+
+@pytest.mark.parametrize("kind", ["sunday", "other"])
+def test_shower_can_be_scheduled_on_either_day_with_60_total_units(kind):
+    today = date(2026, 10, 25)
+    latest = {(room, task): today for room in ROOMS for task in room_tasks(room) if task != "shower"}
+    rooms = {**ROOMS, "bath": 10}
+    plan = plan_for(kind, today, latest, tasks=TASKS, rooms=rooms)
+    assert plan["jobs"] == [{"room": "bath", "task": "shower", "units": 60, "overdue": False}]
+    assert plan["units"] == 60
+    assert plan["workload_limit"] >= 60
+
+
+def test_shower_is_one_job_due_initially_and_every_calendar_month():
+    started = date(2026, 12, 1)
+    phases = initial_phases(ROOMS)
+
+    def showers(today, latest):
+        return [b for b in due_bundles(today, started, phases, latest, TASKS, ROOMS) if "shower" in b.tasks]
+
+    initial = showers(started, {})
+    assert len(initial) == 1
+    assert (initial[0].room, initial[0].units, initial[0].due) == ("bath", 60, month_number(started))
+    latest = {("bath", "shower"): date(2026, 12, 31)}
+    assert showers(date(2026, 12, 31), latest) == []
+    assert len(showers(date(2027, 1, 1), latest)) == 1
+    assert showers(date(2027, 2, 1), latest)[0].due == month_number(date(2027, 1, 1))
+    latest["bath", "shower"] = date(2027, 2, 28)
+    assert showers(date(2027, 2, 28), latest) == []
+    assert len(showers(date(2027, 3, 1), latest)) == 1

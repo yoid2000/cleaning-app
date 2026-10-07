@@ -9,9 +9,19 @@ from datetime import date
 from functools import lru_cache
 from itertools import product
 
-TASKS = {"vacuum": 1, "dust": 2, "mop": 4}
+TASKS = {"vacuum": 1, "dust": 2, "mop": 4, "shower": 60}
 ROOMS = {"living": 9, "guest": 7, "bed": 5, "hall": 3, "bath": 3, "kitchen": 3}
-INTERVALS = {"vacuum": 2, "dust": 1, "mop": 3}
+INTERVALS = {"vacuum": 2, "dust": 1, "mop": 3, "shower": 1}
+
+
+def room_tasks(room):
+    """The shower is one bathroom job, rather than a task for every room."""
+    return ("dust", "vacuum", "mop", "shower") if room == "bath" else ("dust", "vacuum", "mop")
+
+
+def job_units(room, task, tasks, rooms):
+    """Shower work is a total; other tasks scale with room size."""
+    return tasks[task] if task == "shower" else rooms[room] * tasks[task]
 
 
 def task_interval(room, task):
@@ -53,15 +63,17 @@ def due_bundles(today, started, phases, latest, tasks, rooms):
     result = []
     for room, size in rooms.items():
         due = {}
-        for task in INTERVALS:
+        for task in room_tasks(room):
             interval = task_interval(room, task)
             previous = latest.get((room, task))
-            offset = 0 if task == "dust" else phases[room] if task == "mop" else min(phases[room], 1)
+            offset = 0 if task in {"dust", "shower"} else phases[room] if task == "mop" else min(phases[room], 1)
             if (room, task) == ("kitchen", "mop"):
                 offset = 0
             due[task] = month_number(previous) + interval if previous else start + offset
         if due["dust"] <= current:
             result.append(Bundle(room, ("dust",), size * tasks["dust"], due["dust"]))
+        if room == "bath" and due["shower"] <= current:
+            result.append(Bundle(room, ("shower",), job_units(room, "shower", tasks, rooms), due["shower"]))
         if due["mop"] <= current:
             result.append(Bundle(room, ("vacuum", "mop"), size * (tasks["vacuum"] + tasks["mop"]), min(due["mop"], due["vacuum"])))
         elif due["vacuum"] <= current:
@@ -129,7 +141,7 @@ def _usual_workload(phases_items, tasks_items, rooms_items):
     """Find the largest balanced session in a regular, on-time year.
 
     Use current weights and the household's cohorts, so the limit follows config
-    changes and always accommodates an indivisible vacuum/mop pair.
+    changes and always accommodates an indivisible job or vacuum/mop pair.
     """
     phases, tasks, rooms = map(dict, (phases_items, tasks_items, rooms_items))
     started = date(2000, 1, 1)
@@ -173,7 +185,7 @@ def make_plan(today, started, phases, latest, completed_days, tasks, rooms, kind
 
     def jobs_for(group):
         return [
-            {"room": b.room, "task": task, "units": rooms[b.room] * tasks[task],
+            {"room": b.room, "task": task, "units": job_units(b.room, task, tasks, rooms),
              "overdue": b.due < current}
             for b in sorted(group, key=lambda b: (b.room, b.tasks)) for task in b.tasks
         ]

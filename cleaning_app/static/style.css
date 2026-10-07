@@ -690,7 +690,7 @@ main {
 
 .rhythm-grid {
   display:grid;
-  grid-template-columns:repeat(3,1fr);
+  grid-template-columns:repeat(2,1fr);
   gap:14px;
 }
 
@@ -740,6 +740,11 @@ main {
 }
 
 .mop {
+  background:#e6edef;
+  color:#759097;
+}
+
+.shower {
   background:#e6edef;
   color:#759097;
 }

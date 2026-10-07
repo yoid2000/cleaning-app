@@ -37,10 +37,11 @@ def test_pages_load(client, path):
     assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
 
 
-def test_default_date_and_all_18_job_choices(client):
+def test_default_date_and_all_19_job_choices(client):
     assert b'value="2026-10-26"' in client.get("/what-i-did").data
     response = client.get("/record/jobs?date=2026-10-26")
-    assert response.data.count(b'type="checkbox"') == 18
+    assert response.data.count(b'type="checkbox"') == 19
+    assert response.data.count(b'value="bath:shower"') == 1
 
 
 def test_assignment_recording_and_duplicate_submission(app, client):
@@ -100,7 +101,7 @@ def test_invalid_and_future_dates_rejected(client, day):
     assert post(client, "/record/jobs", {"date": day, "jobs": ["bath:dust"]}).status_code == 400
 
 
-@pytest.mark.parametrize("jobs", [[], ["attic:dust"], ["bed:polish"], ["bed:dust:extra"]])
+@pytest.mark.parametrize("jobs", [[], ["attic:dust"], ["bed:polish"], ["bed:dust:extra"], ["living:shower"]])
 def test_invalid_selection_rejected_atomically(app, client, jobs):
     assert post(client, "/record/jobs", {"date": "2026-10-26", "jobs": jobs}).status_code == 400
     assert rows(app) == []
@@ -156,8 +157,41 @@ def test_missed_sessions_save_a_bounded_plan_and_show_carried_work(app, client):
         plan = db.last_assignment()
     assert plan["units"] <= plan["workload_limit"]
     assert plan["deferred"]
-    assert len(plan["jobs"]) + len(plan["deferred"]) == 12
+    assert sum(len(day["jobs"]) for day in plan["days"]) + len(plan["deferred"]) == 13
     post(client, "/record/last", {"date": "2027-04-26", "assignment_id": plan["id"]})
     recorded = {(r["room"], r["task"]) for r in rows(app) if r["day"] == "2027-04-26"}
     assert recorded == {(j["room"], j["task"]) for j in plan["jobs"]}
     assert not recorded.intersection((j["room"], j["task"]) for j in plan["deferred"])
+
+
+@pytest.mark.parametrize("day", ["2026-10-25", "2026-10-26"])
+def test_shower_recording_uses_total_units_on_any_day(app, client, day):
+    with app.app_context(), db.get_db() as conn:
+        conn.execute("UPDATE weights SET units = 10 WHERE kind = 'room' AND name = 'bath'")
+    menu = client.get("/record/jobs", query_string={"date": day}).data
+    assert b'value="bath:shower" data-room="bath" data-task="shower" data-units="60"' in menu
+    response = post(client, "/record/jobs", {"date": day, "jobs": ["bath:shower"]})
+    assert response.status_code == 200
+    assert b"Shower" in response.data
+    recorded = rows(app)
+    assert len(recorded) == 1
+    assert (recorded[0]["room"], recorded[0]["task"], recorded[0]["units"]) == ("bath", "shower", 60)
+    post(client, "/record/jobs", {"date": day, "jobs": ["bath:shower"]})
+    assert len(rows(app)) == 1
+
+
+def test_existing_database_gets_shower_without_resetting_settings_or_history(app, client):
+    post(client, "/record/jobs", {"date": "2026-10-26", "jobs": ["living:dust"]})
+    post(client, "/what-to-do", {"kind": "sunday"})
+    with app.app_context(), db.get_db() as conn:
+        old_plan = db.last_assignment()
+        old_started, old_phases = db.setting("started"), db.setting("phases")
+        conn.execute("DELETE FROM weights WHERE kind = 'task' AND name = 'shower'")
+        conn.execute("UPDATE weights SET units = 8 WHERE kind = 'task' AND name = 'dust'")
+    reopened = create_app({"TESTING": True, "DATABASE": app.config["DATABASE"], "TODAY": date(2026, 10, 26)})
+    assert reopened.config["SECRET_KEY"] == app.config["SECRET_KEY"]
+    with reopened.app_context():
+        assert db.weights()[0] == {**TASKS, "dust": 8}
+        assert db.last_assignment() == old_plan
+        assert (db.setting("started"), db.setting("phases")) == (old_started, old_phases)
+    assert rows(reopened) == rows(app)

@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 
 from . import db
-from .scheduler import INTERVALS, ROOMS, TASKS, due_bundles, make_plan
+from .scheduler import INTERVALS, ROOMS, TASKS, due_bundles, job_units, make_plan, room_tasks
 
 
 def create_app(test_config=None):
@@ -57,7 +57,8 @@ def create_app(test_config=None):
     @app.context_processor
     def common():
         return {"today": today(), "csrf_token": csrf_token, "room_names": ROOMS,
-                "task_names": TASKS, "intervals": INTERVALS}
+                "task_names": TASKS, "intervals": INTERVALS, "room_tasks": room_tasks,
+                "job_units": job_units}
 
     @app.template_filter("nice_date")
     def nice_date(value):
@@ -124,11 +125,11 @@ def create_app(test_config=None):
         jobs = set()
         for key in selected:
             parts = key.split(":")
-            if len(parts) != 2 or parts[0] not in ROOMS or parts[1] not in TASKS:
+            if len(parts) != 2 or parts[0] not in ROOMS or parts[1] not in room_tasks(parts[0]):
                 raise ValueError("One of the selected jobs is not valid.")
             jobs.add(tuple(parts))
         if day.weekday() == 6 and any(task in {"vacuum", "mop"} for _, task in jobs):
-            raise ValueError("Vacuuming and mopping cannot be recorded on a Sunday. Choose another date, or select only dusting jobs.")
+            raise ValueError("Vacuuming and mopping cannot be recorded on a Sunday. Choose another date, or select dusting or shower jobs.")
         # Completing a mop job always records the required same-day vacuum too.
         required = {(room, "vacuum") for room, task in jobs if task == "mop"}
         added = required - jobs
@@ -138,7 +139,7 @@ def create_app(test_config=None):
         with db.get_db() as conn:
             for room, task in sorted(jobs):
                 result = conn.execute("INSERT OR IGNORE INTO completions (day, room, task, units) VALUES (?, ?, ?, ?)",
-                                      (day.isoformat(), room, task, rooms[room] * tasks[task]))
+                                      (day.isoformat(), room, task, job_units(room, task, tasks, rooms)))
                 inserted += result.rowcount
         flash(f"{inserted} {'job' if inserted == 1 else 'jobs'} recorded for {day.strftime('%d %B %Y')}." if inserted else "Those jobs are already recorded for this date.", "success")
         if added:

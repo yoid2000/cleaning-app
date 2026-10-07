@@ -45,7 +45,7 @@ trusted private network. The default binds only to the local computer.
   of jobs for your next cleaning day. Viewing or refreshing a plan does not complete
   jobs or consume a cleaning day.
 - **What I did:** choose a date (today by default), then either record the last
-  assigned jobs or select from the complete 18-job menu. You can record any subset
+  assigned jobs or select from the complete 19-job menu. You can record any subset
   of a plan through the menu. Selecting mopping includes same-day vacuuming.
 - **Config:** change task work and room size units. New plans use the new values;
   history retains the effort recorded at completion.
@@ -59,6 +59,7 @@ trusted private network. The default binds only to the local computer.
 | Vacuum | 1 | Every 2 calendar months, plus every mop day |
 | Dust | 2 | Every calendar month |
 | Mop | 4 | Kitchen every calendar month; other rooms every 3 calendar months |
+| Shower | 60 total | Every calendar month, on Sunday or any other day |
 
 | Room | Size units |
 | --- | ---: |
@@ -69,7 +70,9 @@ trusted private network. The default binds only to the local computer.
 | Bath | 3 |
 | Kitchen | 3 |
 
-Job difficulty is **room size × task work**.
+Job difficulty is **room size × task work** for vacuuming, dusting, and mopping.
+**Shower** is a single job under **Bath** and takes **60 total work units** by
+default, independent of room size. Its total work units can be changed in Config.
 
 The different vacuum/mop intervals require interpreting the same-day rule as
 **every mop must have a same-day vacuum**; vacuum-only sessions are allowed.
@@ -84,7 +87,8 @@ A job is eligible from the start of its due
 month. It can therefore be completed early or late in that month. This matches the
 three-days-per-month routine without requiring fixed dates for cleaning days.
 
-On a fresh installation, dusting is due for all rooms in the first month. The
+On a fresh installation, dusting is due for all rooms and shower cleaning is due
+in the first month. The
 rooms are split into three cohorts with balanced total size (9, 10, and 11 with
 the defaults). Other rooms' first mops are due in months one, two, and three.
 Kitchen mopping is due in the first month and every month thereafter. Every room's
@@ -95,11 +99,12 @@ over the initial schedule.
 
 Each plan balances due work across the remaining days of the monthly target:
 one Sunday and two non-Sundays. A cleaning day is a distinct date with at least one
-recorded job. Vacuum/mop pairs are indivisible, and Sunday can only receive dusting.
+recorded job. Vacuum/mop pairs are indivisible, and Sunday can receive dusting
+and shower cleaning.
 The scheduler searches the valid allocations and minimizes the sum of squared daily
 workloads. Ties favor older jobs on the requested day. A session's workload is
 limited to the largest balanced session in a simulated year of regular cleaning,
-using the current room sizes, task weights, and starting cohorts (50 units with
+using the current room sizes, task weights, and starting cohorts (66 units with
 the defaults). Large indivisible room jobs can prevent perfectly equal workloads.
 
 After work is recorded, the next plan recalculates from actual history. Backdated
@@ -136,12 +141,13 @@ CSRF protection.
 
 ```powershell
 .\.venv\Scripts\python -m pip install -r requirements-dev.txt
-.\.venv\Scripts\python -m pytest -q
+.\.venv\Scripts\python -m pytest tests -q
 ```
 
 The suite covers the application workflows, SQLite persistence, duplicate and
 backdated entries, validation, Sunday rules, paired floor jobs, optimal workload
-partitioning, monthly kitchen mopping, missed sessions without increased workload,
+partitioning, monthly kitchen mopping and shower cleaning, shower's total work
+units and Sunday eligibility, existing database upgrades, missed sessions without increased workload,
 and two-year schedule simulations for every ordering of the three
 monthly day types. With the default settings and regular completion, those
 simulations meet all calendar-month frequencies in three days per month.
